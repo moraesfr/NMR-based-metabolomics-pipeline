@@ -1,0 +1,162 @@
+# When having three or more groups, use the following commands to perform Analysis of Variance (ANOVA)
+# saving box plots for all the variables, and using the ANOVA result to plot ridge curves.
+
+# Load required packages
+library(randomForest)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggridges)
+library(viridis)
+
+# Set working directory
+setwd("YOUR_DIRECTORY")
+
+# Read the data
+data <- read.csv("YOUR_DATA.csv", header = TRUE, row.names = 1)
+group <- as.factor(data[, ncol(data)])
+features <- data[, -ncol(data)]
+
+# Boxplots
+# Create a folder to store the plots (if not exists)
+dir.create("boxplots", showWarnings = FALSE)
+
+# Loop over variables
+for (var in colnames(features)) {
+  df_plot <- data.frame(Value = features[[var]], Group = group)
+
+  p <- ggplot(df_plot, aes(x = Group, y = Value, fill = Group)) +
+    geom_boxplot() +
+    theme_classic() +  # white background
+    ggtitle(paste("Boxplot of", var)) +
+    theme(plot.title = element_text(hjust = 0.5))
+
+  ggsave(filename = paste0("boxplots/", var, "_boxplot.png"), plot = p, width = 6, height = 4)
+}
+
+# Pareto scaling function
+pareto_scale <- function(df) {
+  scaled <- sweep(df, 2, colMeans(df), "-")
+  scaled <- sweep(scaled, 2, sqrt(apply(df, 2, sd)), "/")
+  return(scaled)
+}
+
+# Apply scaling
+features <- pareto_scale(features)
+
+# --- ANOVA on all features ---
+anova_all <- apply(features, 2, function(x) {
+  fit <- aov(x ~ group)
+  summary(fit)[[1]][["Pr(>F)"]][1]
+})
+p_adj <- p.adjust(anova_all, method = "fdr")
+
+# Create ANOVA results table
+anova_results_df <- data.frame(
+  Metabolite = colnames(features),
+  p_value = anova_all,
+  p_adj = p_adj
+)
+
+# Save ANOVA results
+write.csv(anova_results_df, "ANOVA_results_all_metabolites.csv", row.names = FALSE)
+
+# --- Filter only significant metabolites (FDR < 0.05) ---
+sig_metabolites <- anova_results_df %>%
+  filter(p_adj < 0.05) %>%
+  arrange(p_adj)
+
+# Check if any significant metabolites found
+if (nrow(sig_metabolites) == 0) {
+  print("No significant metabolites found with FDR < 0.05.")
+	# --- Filter only significant metabolites (FDR < 0.05) ---
+	sig_metabolites <- anova_results_df %>%
+	  filter(p_value < 0.05) %>%
+	  arrange(p_value)
+
+	# Check if any significant metabolites found
+	if (nrow(sig_metabolites) == 0) {
+	  stop("No significant metabolites found with p-Value < 0.05.")
+	  
+	}
+
+	# Filter data for those metabolites
+	data_sig <- features[, sig_metabolites$Metabolite]
+	data_sig$Group <- group
+
+	# Reshape for plotting
+	long_data_sig <- data_sig %>%
+	  pivot_longer(cols = -Group, names_to = "Metabolite", values_to = "Value")
+
+	# Add significance stars
+	sig_metabolites$Significance <- cut(sig_metabolites$p_value,
+	  breaks = c(-Inf, 0.001, 0.01, 0.05, Inf),
+	  labels = c("***", "**", "*", "ns")
+	)
+
+	# Reorder metabolite levels for the plot
+	long_data_sig$Metabolite <- factor(long_data_sig$Metabolite,
+	  levels = sig_metabolites$Metabolite[order(sig_metabolites$p_value)]
+	)
+
+	# Ridge plot with only significant metabolites
+	p_sig <- ggplot(long_data_sig, aes(x = Value, y = Metabolite, fill = Group)) +
+	  geom_density_ridges(alpha = 0.6, scale = 1.2, rel_min_height = 0.01, color = "white") +
+	  theme_classic() +
+	  labs(title = "Significantly Altered Metabolites (FDR < 0.05)",
+	       x = "Value",
+	       y = "Metabolite") +
+	  scale_fill_viridis_d(option = "D") +
+	  theme(
+	    legend.position = "top",
+	    axis.text.y = element_text(size = 14),
+	    axis.title = element_text(size = 14),
+	    plot.title = element_text(size = 16, face = "bold")
+	  )
+
+	# Save the plot
+	ggsave("RidgePlot_ANOVA_p_value_less_0.05.png", p_sig, width = 7, height = 10, dpi = 300)
+
+	}else{
+
+	# Filter data for those metabolites
+	data_sig <- features[, sig_metabolites$Metabolite]
+	data_sig$Group <- group
+
+	# Reshape for plotting
+	long_data_sig <- data_sig %>%
+	  pivot_longer(cols = -Group, names_to = "Metabolite", values_to = "Value")
+
+	# Add significance stars
+	sig_metabolites$Significance <- cut(sig_metabolites$p_adj,
+	  breaks = c(-Inf, 0.001, 0.01, 0.05, Inf),
+	  labels = c("***", "**", "*", "ns")
+	)
+
+	# Reorder metabolite levels for the plot
+	long_data_sig$Metabolite <- factor(long_data_sig$Metabolite,
+	  levels = sig_metabolites$Metabolite[order(sig_metabolites$p_adj)]
+	)
+
+	# Ridge plot with only significant metabolites
+	p_sig <- ggplot(long_data_sig, aes(x = Value, y = Metabolite, fill = Group)) +
+	  geom_density_ridges(alpha = 0.6, scale = 1.2, rel_min_height = 0.01, color = "white") +
+	  theme_classic() +
+	  labs(title = "Significantly Altered Metabolites (FDR < 0.05)",
+	       x = "Value",
+	       y = "Metabolite") +
+	  scale_fill_viridis_d(option = "D") +
+	  theme(
+	    legend.position = "top",
+	    axis.text.y = element_text(size = 14),
+	    axis.title = element_text(size = 14),
+	    plot.title = element_text(size = 16, face = "bold")
+	  )
+
+	# Save the plot
+	ggsave("RidgePlot_ANOVA_FDR_less_0.05.png", p_sig, width = 7, height = 10, dpi = 300)
+
+	# Save table with significant metabolites
+	write.csv(sig_metabolites, "Significant_Metabolites_ANOVA.csv", row.names = FALSE)
+	}
+rm(list=ls())

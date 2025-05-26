@@ -9,6 +9,7 @@ This repository contains an R script for advanced statistical and machine learni
   - Welch's t-test for univariate analysis.
   - Pareto scaling for normalization.
   - Principal Component Analysis (PCA) and loadings/importance (WSSL).
+    -  Weighted Sum of Squared Loadings (WSSL) are squared loading by the proportion of variance explained by the corresponding PC. This accounts for the fact that PC1 usually explains more variance than PC5, giving more weight to early components.
   - Partial Least Squares Discriminant Analysis (PLS-DA) and VIP scores.
   - Leave-One-Out Cross-Validation (LOOCV) for Random Forest and SVM classifiers.
   - Calculation of model metrics (AUC, MCC, Precision, Recall).

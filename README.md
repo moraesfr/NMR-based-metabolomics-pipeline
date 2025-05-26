@@ -49,7 +49,7 @@ BiocManager::install("ropls")
 
 2. **Prepare Input File**
 
-   Ensure your CSV file (e.g., `G1_G3_12_DSS.csv`) is in the working directory. The file should have:
+   Ensure your CSV file (e.g., `YOUR_DATA.csv`) is in the working directory. The file should have:
    - Rows: samples
    - Columns: metabolites (last column = group/class label)
    - Header row with column names
